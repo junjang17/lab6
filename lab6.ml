@@ -65,23 +65,24 @@ succeeding exercises, you shouldn't feel beholden to how the
 definition is introduced in the skeleton code below. (We'll stop
 mentioning this now, and forevermore.) *)
 
-let twos = fun () -> failwith "twos not implemented" ;;
+let twos = fun () -> smap (( + ) 1) ones() ;;
 
 (* An infinite stream of threes, built from the ones and twos. *)
 
-let threes = fun () -> failwith "threes not implemented" ;;
+let threes = fun () -> smap (( + ) 1) twos ;;
   
 (* An infinite stream of natural numbers (0, 1, 2, 3, ...). *)
 
-let nats = fun () -> failwith "nats not implemented" ;;
+let rec nats = fun () -> Cons(0, (smap (( + ) 1) nats)) ;;
 
 (* Now some new examples. For these, don't build them directly, but
 make use of the stream mapping functions. *)
 
 (* Infinite streams of even and odd numbers. *)
 
-let evens () = failwith "evens not implemented" ;;
-let odds () = failwith "odds not implemented" ;;
+let rec evens = 
+  fun () -> Cons(2, smap (( + ) 2) evens) ;;
+let rec odds () = Cons(1, smap(( + ) 2) odds) ;;
 
 (* In addition to mapping over streams, we should be able to use all
 the other higher-order list functions you've grown to know and love,
@@ -98,12 +99,15 @@ predicate.  Example:
    - : int list = [0; 2; 4; 6; 8; 10; 12; 14; 16; 18]
  *)
 
-let sfilter _ = failwith "sfilter not implemented" ;;
+let rec sfilter (f : 'a -> bool) (s : 'a stream) : 'a stream = 
+  let Cons(h, t) = s() in
+  if (f h) then fun () -> Cons(h, (sfilter f t))
+  else sfilter f t ;;
   
 (* Now redefine evens and odds using sfilter *)
 
-let evens2 _ = failwith "evens with sfilter not implemented" ;;
-let odds2 _ = failwith "odds with sfilter not implemented" ;;
+let evens2 = sfilter (fun x -> x mod 2 = 0) nats ;;
+let odds2 = sfilter (fun x -> x mod 2 <> 0) nats ;;
 
 (*====================================================================
 Part 2: Eratosthenes Sieve
@@ -162,7 +166,10 @@ In defining the sieve function, the following functon may be useful.
 let not_div_by (n : int) (m : int) : bool = 
     not (m mod n = 0) ;;
 
-let rec sieve s = failwith "sieve not implemented" ;;
+let rec sieve s = 
+  let Cons(h, t) = s() in
+  fun () -> Cons(h, sieve (sfilter (not_div_by h) t))
+
 
 (*====================================================================
 Part 3: Using OCaml's Lazy module
@@ -221,16 +228,21 @@ module NativeLazyStreams =
       else head s :: first (n - 1) (tail s) ;;
 
     let rec smap (f : 'a -> 'b) (s : 'a stream) : 'b stream =
-      failwith "smap native not implemented" ;;
+      let Cons(h, t) = Lazy.force s in
+      lazy(Cons(f h, smap f t))
 
     let rec smap2 (f : 'a -> 'b -> 'c)
                   (s1 : 'a stream)
                   (s2 : 'b stream)
                   : 'c stream = 
-      failwith "smap2 native not implemented" ;;
+      let Cons(h1, t1) = Lazy.force s1 in
+      let Cons(h2, t2) = Lazy.force s2 in
+      lazy(Cons(f h1 h2, smap2 f t1 t2))
 
     let rec sfilter (pred : 'a -> bool) (s : 'a stream) : 'a stream =
-      failwith "sfilter native not implemented" ;;
+      let Cons(h, t) = Lazy.force s in
+      if pred h then lazy(Cons(h, sfilter pred t))
+      else sfilter pred t
 
   end
 
@@ -263,11 +275,13 @@ time (msecs): 0.006914
 (* Redo the Eratosthenes sieve using the NativeLazyStreams by
    completing the functions below. *)
 
-let rec nats2 = lazy (failwith "nats native not implemented") ;;
+let rec nats2 = lazy(Cons(2, smap (( + ) 1) nats2)) ;;
  
-let rec sieve2 s = failwith "sieve native not implemented" ;;
+let rec sieve2 s = 
+  let Cons(h, t) = Lazy.force s in
+  lazy(Cons(h, sieve2(sfilter (not_div_by h) t))) ;;
 
-let primes2 = lazy (failwith "primes2 native not implemented") ;;
+let primes2 = lazy (sieve2 nats2) ;;
 
 (* How much further can you get computing primes now that the
    recomputation problem is solved?  Implement a function to find the
@@ -275,5 +289,7 @@ let primes2 = lazy (failwith "primes2 native not implemented") ;;
    prime. *)
 
 let rec nth (s : 'a stream) (n : int) : 'a =
-  failwith "nth native not implemented" ;;
+  let Cons(h,t) = Lazy.force s in
+  if n = 0 then h
+  else nth t (n - 1) 
 
